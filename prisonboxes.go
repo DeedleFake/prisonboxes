@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
-	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -36,25 +34,6 @@ func simulate(boxes []int) bool {
 	return true
 }
 
-var boxPool sync.Pool
-
-func getBoxes(np int) []int {
-	boxes, _ := boxPool.Get().([]int)
-	if boxes != nil {
-		return boxes
-	}
-
-	boxes = make([]int, np)
-	for i := range boxes {
-		boxes[i] = i
-	}
-	return boxes
-}
-
-func putBoxes(boxes []int) {
-	boxPool.Put(boxes)
-}
-
 func main() {
 	np := flag.Int("p", 100, "number of prisoners")
 	iter := flag.Int("n", 100000, "number of iterations to run")
@@ -62,25 +41,18 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	var wg sync.WaitGroup
-	wg.Add(*iter)
-
-	var success int64
-	for i := 0; i < *iter; i++ {
-		go func() {
-			defer wg.Done()
-
-			boxes := getBoxes(*np)
-			defer putBoxes(boxes)
-
-			shuffle(boxes)
-			if simulate(boxes) {
-				atomic.AddInt64(&success, 1)
-			}
-		}()
+	boxes := make([]int, *np)
+	for i := range boxes {
+		boxes[i] = i
 	}
 
-	wg.Wait()
+	var success int
+	for i := 0; i < *iter; i++ {
+		shuffle(boxes)
+		if simulate(boxes) {
+			success++
+		}
+	}
 
 	fmt.Printf("Successful: %v\n", success)
 	fmt.Printf("Success rate: %.2f\n", float64(success)*100/float64(*iter))
